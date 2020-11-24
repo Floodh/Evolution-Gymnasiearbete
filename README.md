@@ -7,5 +7,4 @@ Natanael Stridsfeldt
 Nils Ledin
 
 To run this program you MOST have pygame installed.
-
-You can download pygame at https://www.pygame.org/news
+\nYou can download pygame at https://www.pygame.org/news
