@@ -328,9 +328,12 @@ class Blob():
         self.target_plant = 0
         self.target_mate = 0
 
+        self.age = 0 # in frames
+        self.effciency = float ( 1 / ( 1 + self.age * 0.001  ) )
+
 
         # genes
-        self.minimal_mass = float(10) # minimal mass before death
+        self.minimal_mass = float(100) # minimal mass before death
         self.hungry_bias = float(500) # not yet used
         self.sight = float(600)
         self.agility = float(1) # not yet used
@@ -345,11 +348,15 @@ class Blob():
 
         # if self.energi_drain_konstant * self.velocity ** 2 >= 1 then the program will crash
         # the reason being that mass will become negative which means the blobs radius will become a complex number which can not be converted to a intiger
+        self.age += 1
+        self.effciency = float ( 1 / ( 1 + self.age * 0.001  ) )
 
 
 
-
-        self.mass -=  self.energi_drain_konstant * ( (self.mass * self.velocity ** 2)) # lowers mas depending on energy used to move
+        self.mass -=  self.energi_drain_konstant * ( (self.mass * self.velocity ** 2)) * ( 1 / self.effciency  )  # lowers mas depending on energy used to move
+        self.mass -= 0.01 * self.energi_drain_konstant * self.sight * ( 1 / self.effciency  )
+        if self.mass < 0:
+            self.mass = float(0)
         self.radius = int( ( self.mass / pi ) ** 0.5 )
         self.velocity = self.speed_modifier * ( 1000 / ( self.mass + 500 ) )
         
@@ -405,12 +412,18 @@ class Blob():
         
         # repruction child size gene
         child.reproduce_child_size = (self.reproduce_child_size + partner.reproduce_child_size ) / 2 + uniform(-0.10,0.10)
+        if child.reproduce_child_size < 0:
+            child.reproduce_child_size = 0
 
         # sight gene
         child.sight = (self.sight + partner.sight) / 2 + uniform(-100, 100)
+        if child.sight < 1:
+            child.sight = 1
 
         # speed gene
         child.speed_modifier = (self.speed_modifier + partner.speed_modifier) / 2 + uniform(-0.5, 0.5)
+        if child.speed_modifier < 0:
+            speed_modifier = 0
 
         # adds the child to the population
         population.append( child )
@@ -581,11 +594,11 @@ class Chunk():
         self.width = int(100)
         self.biomass = int(1000)
         self.max_biomass = int(10000)
-        self.growth = float(0.75)
+        self.growth = float(0.25)
         self.x = 0
         self.y = 0
         self.color = [0,0,0]
-        self.plants = 0
+        self.plants = 0  # to be revisited
 
 
     def update(self):
@@ -775,8 +788,7 @@ class Statistics():
 
         
             sleep(0.05)
-
-    
+  
     def visualize_pop_size(self):
 
         # important :
@@ -858,7 +870,8 @@ class Statistics():
         
             sleep(0.05)
 
-    def visualize_gene(self, gene_data):
+    def visualize_gene(self, gene_data, y_string):
+
 
         # important :
         # ratio_y most be given two values representing the minimal and max value, the minimal value will be origo and the max will be the top of the y axis
@@ -910,8 +923,13 @@ class Statistics():
         # draws text
         font = pygame.font.SysFont('Comic Sans MS',15) # define the style of the text
 
-        textsurface_0 = font.render('Y = pop size , X = time', False, (200, 200, 0)) # creates the text object
-        textsurface_1 = font.render(str( int ( biggest_y_value ) ), False, (200, 200, 0)) # creates the text object
+        textsurface_0 = font.render('Y = %s , X = time' % (y_string), False, (200, 200, 0)) # creates the text object
+        if y_string == "average_child_size":
+            textsurface_1 = font.render(str( int ( biggest_y_value * 100 ) ) + "%", False, (200, 200, 0)) # creates the text object
+        elif y_string == "blob_average_speed":
+            textsurface_1 = font.render(str( int ( biggest_y_value * 100 ) ) + "%", False, (200, 200, 0)) # creates the text object
+        else:
+            textsurface_1 = font.render(str( int ( biggest_y_value) ), False, (200, 200, 0)) # creates the text object
         textsurface_2 = font.render("0", False, (200, 200, 0)) # creates the text object
 
         
@@ -935,6 +953,8 @@ class Statistics():
 
         
             sleep(0.05)
+
+    # def visualize_pop_ratio(self, population, plant_pop)
 
 
 class Visual():
@@ -973,7 +993,7 @@ class Visual():
             # uppdates and draws objects
 
 
-            if self.timer % 60 == 0:
+            if self.timer % 10 == 0:
                 PL = Plant()
                 PL.find_chunk(ENV)
                 plant_pop.append(PL)
@@ -1045,7 +1065,7 @@ ENV = Environment()
 
 plant_pop = []
 population = []
-for i in range(0,7):
+for i in range(0,50):
     PL = Plant()
     PL.find_chunk(ENV)
     plant_pop.append(PL)
@@ -1072,7 +1092,14 @@ pygame.quit() # exit properly (pygame)
 run = True
 while run == True:
     
-    print("options : \nmass_graph : shows mass for blobs, plants and chunks\npop_graph : shows the populations over time\nbirth_gene_1_graph : shows the gene that determens how much mass you wan't to create a child\nbirth_gene_2_graph : shows the gene which determen how much mass is tranfered to child during reproduction")
+    print("options : ")
+    print("mass_graph : shows mass for blobs, plants and chunks")
+    print("pop_graph : shows the populations over time")
+    print("birth_gene_1_graph : shows the gene that determens how much mass you wan't to create a child")
+    print("birth_gene_2_graph : shows the gene which determen how much mass is tranfered to child during reproduction")
+    print("speed_gene_graph : shows the gene which multiplies the blobs speed")
+    print("sight_gene_graph : shows the gene which decides how far the blob can se")
+
     show_stat = input("enter command : ")
     show_stat = str(show_stat)
 
@@ -1085,24 +1112,29 @@ while run == True:
 
     elif show_stat == "pop_graph":
 
-        #print( "blob_total_mass : ", Statistics.blob_population_size )
-        #print( "plant_total_mass : ", Statistics.plant_pop_size )
         Statistics().visualize_pop_size()
         pygame.quit()
 
     elif show_stat == "birth_gene_1_graph":
 
-        #print( "blob_total_mass : ", Statistics.blob_population_size )
-        #print( "plant_total_mass : ", Statistics.plant_pop_size )
-        Statistics().visualize_gene( Statistics.blob_average_mass_to_reproduce )
+        Statistics().visualize_gene( Statistics.blob_average_mass_to_reproduce, "mass_to_reproduce"  )
         pygame.quit()
 
     elif show_stat == "birth_gene_2_graph":
 
-        #print( "blob_total_mass : ", Statistics.blob_population_size )
-        #print( "plant_total_mass : ", Statistics.plant_pop_size )
-        Statistics().visualize_gene( Statistics.blob_average_child_size )
+        Statistics().visualize_gene( Statistics.blob_average_child_size, "average_child_size" )
         pygame.quit()
+
+
+    elif show_stat == "speed_gene_graph":
+
+        Statistics().visualize_gene( Statistics.blob_average_speed, "blob_average_speed" )
+        pygame.quit()
+
+    elif show_stat == "sight_gene_graph":
+
+        Statistics().visualize_gene( Statistics.blob_average_sight, "blob_average_sight" )
+        pygame.quit() 
 
     elif show_stat == "end":
 
