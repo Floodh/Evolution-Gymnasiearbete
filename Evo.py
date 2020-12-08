@@ -7,6 +7,7 @@ from random import uniform, randint
 
 
 
+
 class Misc():
 
     # to make :
@@ -14,12 +15,14 @@ class Misc():
     # death counter 
 
     # varibles :
-    window_width = 1300
-    window_length = 800
+    window_width = int(1300)
+    window_length = int(800)
 
     last_time = float(0)
     framerate = int(60)
     skiped_frames = int(0)
+
+    statistics_circle_size = int(2)
 
     # arrays :
     population = [] # at the momment this array is not used , instead a hard coded array with the same name outside the class is used
@@ -39,27 +42,37 @@ class Misc():
     # report each frame
     def report(self,frame):
         
+        # world wide mass (everything)
+        world_wide_mass = 0
+        
         # calculates combined mass for blobs
         blob_total_mass = 0
         for blob in population:
 
             blob_total_mass += blob.mass
         
+        world_wide_mass += blob_total_mass
+        
         # calculates combined mass for plants
         plant_total_mass = 0
         for plant in plant_pop:
 
             plant_total_mass += plant.mass
+
+        world_wide_mass += plant_total_mass
         
         # calculates combined mass for chunks
         biomass = 0
         for x in range(0,13):
             for y in range(0,8):
                 biomass += ENV.chunks[x][y].biomass
+        
+        world_wide_mass += biomass
+
 
         print("frame : ", frame, end = '')
-        print("  blobs mass : ", int(blob_total_mass) / 1000, "k  plants mass : ", int(plant_total_mass) / 1000, "k  chunks mass", int(biomass) / 1000, "k",end = '')
-        self.report_genes()
+        print("  blobs mass : ", int(blob_total_mass) / 1000, "k  plants mass : ", int(plant_total_mass) / 1000, "k  chunks mass : ", int(biomass) / 1000, "k  world mass : ", int ( ENV.world_mass ), "  total world wide mass : ", int ( world_wide_mass ), end = '')
+        #self.report_genes()
         print('')
     
     def get_biggest_num(array):
@@ -318,7 +331,7 @@ class Blob():
         self.x = uniform(0,float(Misc.window_width))
         self.y = uniform(0,float(Misc.window_length))
         self.mass = float(1000)
-        self.energi_drain_konstant = float(0.0025)
+        self.energi_drain_konstant = float(0.00125)
         self.radius = int( ( self.mass / pi ) ** 0.5 )
         self.velocity = float(1)
         self.angle = float(pi / 2)
@@ -346,6 +359,8 @@ class Blob():
 
     def update(self): # each frame
 
+        mass_before_update = self.mass
+
         # if self.energi_drain_konstant * self.velocity ** 2 >= 1 then the program will crash
         # the reason being that mass will become negative which means the blobs radius will become a complex number which can not be converted to a intiger
         self.age += 1
@@ -353,12 +368,15 @@ class Blob():
 
 
 
-        self.mass -=  self.energi_drain_konstant * ( (self.mass * self.velocity ** 2)) * ( 1 / self.effciency  )  # lowers mas depending on energy used to move
-        self.mass -= 0.01 * self.energi_drain_konstant * self.sight * ( 1 / self.effciency  )
+        self.mass -=  self.energi_drain_konstant * ( (self.mass * self.velocity ** 2)) * ( 1 / self.effciency  )  # lowers mass depending on energy used to move
+        self.mass -= 0.01 * self.energi_drain_konstant * self.sight * ( 1 / self.effciency  ) # lowers mass depending on sight
         if self.mass < 0:
             self.mass = float(0)
         self.radius = int( ( self.mass / pi ) ** 0.5 )
         self.velocity = self.speed_modifier * ( 1000 / ( self.mass + 500 ) )
+
+        # the mass lost will return to the worlds mass pool
+        ENV.world_mass += mass_before_update - self.mass
         
         # coalitions
 
@@ -591,8 +609,9 @@ class Chunk():
 
 
     def __init__(self):
+
         self.width = int(100)
-        self.biomass = int(1000)
+        self.biomass = int(0)
         self.max_biomass = int(10000)
         self.growth = float(0.25)
         self.x = 0
@@ -603,8 +622,10 @@ class Chunk():
 
     def update(self):
 
-        self.biomass += self.growth * (1 - self.biomass/self.max_biomass) - self.plants / 5
+        # ENV is the envorment object, which should not have been made an object in the first place but were stuck with it
 
+        self.biomass += int ( self.growth * (1 - self.biomass/self.max_biomass) * ENV.world_mass / ENV.chunks_amount )
+        ENV.mass_given_this_frame += int ( self.growth * (1 - self.biomass/self.max_biomass) * ENV.world_mass / ENV.chunks_amount )
 
         # Update color to see biomass
         self.color[1] = int( 255 * self.biomass / self.max_biomass)
@@ -631,8 +652,19 @@ class Environment():
                 temp.append(TC)
             self.chunks.append(temp)
 
+        self.chunks_amount = len(self.chunks) # the amount of chunks in the world
+        self.world_mass = 100000 # the biomass which exist at the start of the game
+        self.mass_given_this_frame = 0 # a counter to keep track of how much mass is given to the chunks
+
     def update(self):
         pass
+
+    def decrease_world_mass(self):
+
+        # removes mass given to chunks this frame
+        self.world_mass -= self.mass_given_this_frame
+        self.mass_given_this_frame = 0
+
     
     # planned :
     # day and night cycle
@@ -750,12 +782,12 @@ class Statistics():
             
             # draws a dot for the blob data
             y_cord = y_axis_length - ( ( self.blob_total_mass[timer] * ( 1 / biggest_y_value ) ) * y_axis_length ) + spacing
-            pygame.draw.circle(self.window, Colors.red, (int(x_cord), int(y_cord)), 5)
+            pygame.draw.circle(self.window, Colors.red, (int(x_cord), int(y_cord)), Misc.statistics_circle_size)
             print("y : ", y_cord)
             
             # draws a dot for the blob plant
             y_cord = y_axis_length - ( ( self.plant_total_mass[timer] * ( 1 / biggest_y_value ) ) * y_axis_length ) + spacing
-            pygame.draw.circle(self.window, Colors.lime, (int(x_cord), int(y_cord)), 5)
+            pygame.draw.circle(self.window, Colors.lime, (int(x_cord), int(y_cord)), Misc.statistics_circle_size)
 
             timer += 1
         
@@ -831,12 +863,12 @@ class Statistics():
             
             # draws a dot for the blob data
             y_cord = y_axis_length - ( ( self.blob_population_size[timer] * ( 1 / biggest_y_value ) ) * y_axis_length ) + spacing
-            pygame.draw.circle(self.window, Colors.red, (int(x_cord), int(y_cord)), 5)
+            pygame.draw.circle(self.window, Colors.red, (int(x_cord), int(y_cord)), Misc.statistics_circle_size)
             print("y : ", y_cord)
             
             # draws a dot for the blob plant
             y_cord = y_axis_length - ( ( self.plant_pop_size[timer] * ( 1 / biggest_y_value ) ) * y_axis_length ) + spacing
-            pygame.draw.circle(self.window, Colors.lime, (int(x_cord), int(y_cord)), 5)
+            pygame.draw.circle(self.window, Colors.lime, (int(x_cord), int(y_cord)), Misc.statistics_circle_size)
 
             timer += 1
         
@@ -892,9 +924,6 @@ class Statistics():
         # y axis will be for all the data points
         # x axis will be the frames
 
-        # stats (remove when done):
-        gene_data
-
         # gets the biggest value
         biggest_y_value = Misc.get_biggest_num(gene_data)
 
@@ -914,7 +943,7 @@ class Statistics():
             
             # draws a dot for the gene_data
             y_cord = y_axis_length - ( ( gene_data[timer] * ( 1 / biggest_y_value ) ) * y_axis_length ) + spacing
-            pygame.draw.circle(self.window, Colors.red, (int(x_cord), int(y_cord)), 5)
+            pygame.draw.circle(self.window, Colors.red, (int(x_cord), int(y_cord)), Misc.statistics_circle_size)
             print("y : ", y_cord)
 
             timer += 1
@@ -954,7 +983,100 @@ class Statistics():
         
             sleep(0.05)
 
-    # def visualize_pop_ratio(self, population, plant_pop)
+    def visualize_ratio(self, blob_population_size, plant_pop_size, y_string):
+
+        # important :
+        # ratio_y most be given two values representing the minimal and max value, the minimal value will be origo and the max will be the top of the y axis
+        
+        pygame.init() # creates all the important event which we don't need to program ourself
+        pygame.font.init() # enbles the use of text in pygame
+        self.window = pygame.display.set_mode(( Misc().window_width , Misc().window_length )) # creates the window
+        pygame.display.set_caption('Evo Stats') # the window title
+
+        # draw on the surface (only needs to be done once)
+        spacing = 50
+        pygame.draw.line(self.window, Colors.teal, ( spacing, Misc.window_length - spacing ) , ( Misc.window_width - spacing , Misc.window_length - spacing ) , 5 )
+        pygame.draw.line(self.window, Colors.teal, ( spacing, Misc.window_length - spacing ) , ( spacing , spacing ) , 5 )
+        pygame.display.update()
+        
+        # writes the graph
+
+        # y axis will be for all the data points
+        # x axis will be the frames
+
+        # stats data:
+        ratio_data = []
+        len_of_data = len(blob_population_size)
+        timer_0 = 0
+        while timer_0 < len_of_data:
+
+            data_point = float ( ( blob_population_size[timer_0] / plant_pop_size[timer_0] ) )  # this will be in %
+
+            ratio_data.append(data_point)
+
+            timer_0 += 1
+
+        # gets the biggest value
+        biggest_y_value = Misc.get_biggest_num(ratio_data)
+
+        data_points = len( self.frame_array )
+        print(data_points, len(ratio_data))
+        x_axis_length = ( Misc.window_width - spacing ) - spacing
+        y_axis_length = ( Misc.window_length - spacing ) - spacing
+        x_spacing = x_axis_length / data_points
+        y_spacing = y_axis_length / data_points
+        timer = 0
+        while timer < data_points:
+
+            # the y_cord calculation are made by calculating how much percantage of the biggest value a value holds then multiply that with the length of the axis
+
+            x_cord = timer * x_spacing + spacing # x is the same for all data points
+            print("x : ", x_cord)
+            
+            # draws a dot for the gene_data
+            y_cord = y_axis_length - ( ( ratio_data[timer] * ( 1 / biggest_y_value ) ) * y_axis_length ) + spacing
+            pygame.draw.circle(self.window, Colors.red, (int(x_cord), int(y_cord)), Misc.statistics_circle_size)
+            print("y : ", y_cord)
+
+            timer += 1
+        
+
+        # draws text
+        font = pygame.font.SysFont('Comic Sans MS',15) # define the style of the text
+
+        textsurface_0 = font.render('Y = %s , X = time' % (y_string), False, (200, 200, 0)) # creates the text object
+        if y_string == "average_child_size":
+            textsurface_1 = font.render(str( int ( biggest_y_value * 100 ) ) + "%", False, (200, 200, 0)) # creates the text object
+        elif y_string == "blob_average_speed":
+            textsurface_1 = font.render(str( int ( biggest_y_value * 100 ) ) + "%", False, (200, 200, 0)) # creates the text object
+        elif y_string == "blob_to_plant_ratio":
+            textsurface_1 = font.render(str( int ( biggest_y_value * 100 ) ) + "%", False, (200, 200, 0)) # creates the text object
+        else:
+            textsurface_1 = font.render(str( int ( biggest_y_value) ), False, (200, 200, 0)) # creates the text object
+        textsurface_2 = font.render("0", False, (200, 200, 0)) # creates the text object
+
+        
+        self.window.blit( textsurface_0,(0,0) )
+        self.window.blit( textsurface_1,( int ( spacing / 2 ), int ( Misc.window_length - y_axis_length - spacing * 1.5 ) ) )
+        self.window.blit( textsurface_2,( int ( spacing / 2 ), Misc.window_length - spacing) )
+
+        pygame.display.update()
+
+
+        self.timer = 0 # for counting frames
+        self.running = True
+
+        while self.running == True: # infinite loop
+
+            for event in pygame.event.get(): # this allows the program to end the loop if the x buttom is pressed
+
+                if event.type == QUIT:
+
+                    self.running = False
+
+        
+            sleep(0.05)
+
 
 
 class Visual():
@@ -1002,6 +1124,8 @@ class Visual():
                 for y in range(0,8):
                     ENV.chunks[x][y].update()
                     ENV.chunks[x][y].draw(self.window)
+
+            ENV.decrease_world_mass()
 
             for plant in plant_pop:
 
@@ -1099,6 +1223,7 @@ while run == True:
     print("birth_gene_2_graph : shows the gene which determen how much mass is tranfered to child during reproduction")
     print("speed_gene_graph : shows the gene which multiplies the blobs speed")
     print("sight_gene_graph : shows the gene which decides how far the blob can se")
+    print("blob_to_plant_ratio : shows the ratio of blobs per plant")
 
     show_stat = input("enter command : ")
     show_stat = str(show_stat)
@@ -1135,6 +1260,11 @@ while run == True:
 
         Statistics().visualize_gene( Statistics.blob_average_sight, "blob_average_sight" )
         pygame.quit() 
+
+    elif show_stat == "blob_to_plant_ratio":
+
+        Statistics().visualize_ratio(Statistics.blob_population_size, Statistics.plant_pop_size, "blob_to_plant_ratio")
+        pygame.quit()
 
     elif show_stat == "end":
 
