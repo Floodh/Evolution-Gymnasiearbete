@@ -22,6 +22,8 @@ class Misc():
     framerate = int(60)
     skiped_frames = int(0)
 
+    death_counter = int(0)
+
     statistics_circle_size = int(2)
 
     # arrays :
@@ -71,7 +73,7 @@ class Misc():
 
 
         print("frame : ", frame, end = '')
-        print("  blobs mass : ", int(blob_total_mass) / 1000, "k  plants mass : ", int(plant_total_mass) / 1000, "k  chunks mass : ", int(biomass) / 1000, "k  world mass : ", int ( ENV.world_mass ), "  total world wide mass : ", int ( world_wide_mass ), end = '')
+        print("  blobs mass : ", int(blob_total_mass) / 1000, "k  plants mass : ", int(plant_total_mass) / 1000, "k  chunks mass : ", int(biomass) / 1000, "k  world mass : ", int ( ENV.world_mass ), "  total world wide mass : ", int ( world_wide_mass ), "  death counter : ", self.death_counter, end = '')
         #self.report_genes()
         print('')
     
@@ -330,7 +332,7 @@ class Blob():
         # varibles - standard
         self.x = uniform(0,float(Misc.window_width))
         self.y = uniform(0,float(Misc.window_length))
-        self.mass = float(1000)
+        self.mass = float(500)
         self.energi_drain_konstant = float(0.00125)
         self.radius = int( ( self.mass / pi ) ** 0.5 )
         self.velocity = float(1)
@@ -544,7 +546,7 @@ class Plant():
 
 
     def update(self):
-        new_mass = self.photosynthesis * (1 - self.mass/self.max_mass) * ENV.chunks[self.chunk_x][self.chunk_y].biomass/1000 - self.children
+        new_mass = self.photosynthesis * (1 - self.mass/self.max_mass) * ENV.chunks[self.chunk_x][self.chunk_y].biomass/1000
         #calculates mass based on current mass, max mass, biomass in chunk and photosynthesis
 
 
@@ -564,9 +566,8 @@ class Plant():
 
         pygame.draw.circle(window, Colors.green, (int(self.x), int(self.y)), self.radius)
 
-
-
-
+    window_width = int(1300)
+    window_length = int(800)
     def reproduce(self):
         angle = uniform(0,2*pi)
         sapling = Plant()
@@ -575,6 +576,21 @@ class Plant():
 
         sapling.x = self.x + self.seed_spread * sin(angle)
         sapling.y = self.y + self.seed_spread * cos(angle)
+
+        # makes sure the plant does not spawn outside the window
+        if sapling.x < 0:
+
+            sapling.x  = 0
+        elif sapling.x > Misc.window_width:
+            
+            sapling.x  = Misc.window_width
+
+        if sapling.y < 0:
+
+            sapling.y = 0
+        elif sapling.y > Misc.window_length:
+
+            sapling.y = Misc.window_length
         
         sapling.find_chunk(ENV)
         ENV.chunks[sapling.chunk_x][sapling.chunk_y].plants += 1
@@ -687,6 +703,8 @@ class Statistics():
     blob_average_child_size = []
     blob_population_size = []
 
+    blob_death_counter = []
+
     # plant stats:
     
     plant_total_mass = []
@@ -729,6 +747,7 @@ class Statistics():
         self.blob_average_mass_to_reproduce.append( mass_to_reproduce / blob_population_size )
         self.blob_average_child_size.append( child_size / blob_population_size )
         self.blob_population_size.append( blob_population_size )
+        self.blob_death_counter.append( Misc.death_counter )
 
         # plant stats:
 
@@ -1078,7 +1097,7 @@ class Statistics():
             sleep(0.05)
 
 
-
+# effectivly our main function
 class Visual():
 
     def __init__(self):
@@ -1131,6 +1150,8 @@ class Visual():
 
                 plant.update()
                 if plant.mass < plant.minimal_mass:
+
+                    ENV.world_mass += plant.mass
                     ENV.chunks[plant.chunk_x][plant.chunk_y].plants -= 1
                     plant_pop.remove(plant)
 
@@ -1141,7 +1162,9 @@ class Visual():
                 blob.update()
                 if blob.mass < blob.minimal_mass:
 
+                    ENV.world_mass += blob.mass
                     population.remove(blob)
+                    Misc.death_counter += 1
 
                 blob.draw(self.window)
                   
@@ -1194,8 +1217,8 @@ for i in range(0,50):
     PL.find_chunk(ENV)
     plant_pop.append(PL)
 
-
-for i in range(0,4):
+# our starting population
+for i in range(0,5):
     population.append(Blob())
 
 
@@ -1224,6 +1247,7 @@ while run == True:
     print("speed_gene_graph : shows the gene which multiplies the blobs speed")
     print("sight_gene_graph : shows the gene which decides how far the blob can se")
     print("blob_to_plant_ratio : shows the ratio of blobs per plant")
+    print("death_graph : shows a graph of the total death count")
 
     show_stat = input("enter command : ")
     show_stat = str(show_stat)
@@ -1265,6 +1289,11 @@ while run == True:
 
         Statistics().visualize_ratio(Statistics.blob_population_size, Statistics.plant_pop_size, "blob_to_plant_ratio")
         pygame.quit()
+
+    elif show_stat == "death_graph":
+
+        Statistics().visualize_gene( Statistics.blob_death_counter, "blob_death_counter" )
+        pygame.quit() 
 
     elif show_stat == "end":
 
