@@ -5,41 +5,17 @@ from math import sin, cos, tan, pi, atan as arctan, exp, log
 from time import sleep, time
 from random import uniform, randint
 
-
-
-
+# general informations and other help functions which does not deserve their own class
 class Misc():
-
-    # to make :
-    # birth counter
-    # death counter 
 
     # varibles :
     window_width = int(1300)
     window_length = int(800)
-
     last_time = float(0)
     framerate = int(60)
     skiped_frames = int(0)
-
     death_counter = int(0)
-
     statistics_circle_size = int(2)
-
-    # arrays :
-    population = [] # at the momment this array is not used , instead a hard coded array with the same name outside the class is used
-
-    def report_genes(self):
-        
-        average_speed_modifier = 0
-        
-        for blob in population:
-
-            average_speed_modifier += blob.speed_modifier
-
-        average_speed_modifier = average_speed_modifier / len (population)
-
-        print("  ", average_speed_modifier, end = '')
 
     # report each frame
     def report(self,frame):
@@ -74,9 +50,9 @@ class Misc():
 
         print("frame : ", frame, end = '')
         print("  blobs mass : ", int(blob_total_mass) / 1000, "k  plants mass : ", int(plant_total_mass) / 1000, "k  chunks mass : ", int(biomass) / 1000, "k  world mass : ", int ( ENV.world_mass ), "  total world wide mass : ", int ( world_wide_mass ), "  death counter : ", self.death_counter, end = '')
-        #self.report_genes()
         print('')
     
+    # simply return the biggest number in an array
     def get_biggest_num(array):
 
         biggest = 0
@@ -88,7 +64,7 @@ class Misc():
 
         return biggest
 
-
+# conatins a few RGB presets
 class Colors:
     # colors are determend by the RGB pricipal, ranging from 0 to 255 [red,green,blue]
     black = [0,0,0]
@@ -98,10 +74,12 @@ class Colors:
     teal = [0,128,128]
     red = [255,0,0]
 
-
+# deals with the Collision such as plants/blobs and blobs/blobs
 class Collision():
 
-    def check_overlap(blob, plant_pop): # if blob is in eating distance of a plant, return index for plant
+    # collision detection betwen planrs and blob
+    # if blob is in eating distance of a plant, return index for plant
+    def check_overlap(blob, plant_pop): 
 
         eating = -1
         timer = 0
@@ -115,13 +93,15 @@ class Collision():
 
             if distance < total_r / 2:
         
-                eating = timer # gives the index of the plant to be eaten
+                eating = timer 
 
             timer += 1
 
         return eating
 
 
+    # only checks when a blob is searching for a mate
+    # returns "__true__" if the partner is in range for reproduction
     def check_sex(blob, mate):
 
         reproduction = "__false__"
@@ -135,12 +115,12 @@ class Collision():
     
             reproduction = "__true__"
 
-
         return reproduction
 
-
+# the ai class is only used by blob objects, also it's spaghetti code
 class Ai():
 
+    # standard ai stance, will go towards nearest food source
     def hungry(self,blob):
 
 
@@ -198,6 +178,7 @@ class Ai():
         self.move(blob)
 
 
+    # reproduce ai stance, will go towards nearest blob with the same stance
     def mate_search(self,blob):
 
         if blob.target_mate == 0:
@@ -281,6 +262,7 @@ class Ai():
 
         self.move(blob)
     
+    # boid ai stance, prevents blobs from going
     def friend_search(self, blob):
         timer = 0
         best_distance = blob.sight
@@ -291,19 +273,9 @@ class Ai():
 
                 dx = friend.x - blob.x
                 dy = friend.y - blob.y
-
-
-
-
                 distance = ((dx ** 2) + (dy ** 2)) ** 0.5
 
-
-
-
                 if distance < best_distance:
-
-
-
 
                     best_distance = distance
                     BFF = timer
@@ -318,12 +290,12 @@ class Ai():
             blob.angle += uniform(-0.2,0.2)
             
 
-
+    # move function, changes the position of the blob depending on the direction it's going and it's speed
     def move(self,blob):
         blob.x += blob.velocity * sin( blob.angle )
         blob.y += blob.velocity * cos ( blob.angle )
 
-
+# the class from which the blob objects are created, comes with alot of blob exsclusive function
 class Blob():
 
     def __init__(self): # when created
@@ -337,9 +309,10 @@ class Blob():
         self.radius = int( ( self.mass / pi ) ** 0.5 )
         self.velocity = float(1)
         self.angle = float(pi / 2)
+        self.ai_stance_update_rate = int(50)
+        self.ai_stance_update_frame = randint(0, self.ai_stance_update_rate - 1)
         self.ai_stance = "__hungry__"
         
-        self.children = 0
         self.target_plant = 0
         self.target_mate = 0
 
@@ -359,16 +332,11 @@ class Blob():
         self.color = [100,100,100]
 
 
-    def update(self): # each frame
+    def update(self, frame): # each frame
 
         mass_before_update = self.mass
-
-        # if self.energi_drain_konstant * self.velocity ** 2 >= 1 then the program will crash
-        # the reason being that mass will become negative which means the blobs radius will become a complex number which can not be converted to a intiger
         self.age += 1
         self.effciency = float ( 1 / ( 1 + self.age * 0.001  ) )
-
-
 
         self.mass -=  self.energi_drain_konstant * ( (self.mass * self.velocity ** 2)) * ( 1 / self.effciency  )  # lowers mass depending on energy used to move
         self.mass -= 0.01 * self.energi_drain_konstant * self.sight * ( 1 / self.effciency  ) # lowers mass depending on sight
@@ -381,22 +349,23 @@ class Blob():
         ENV.world_mass += mass_before_update - self.mass
         
         # coalitions
-
-
- 
         food = Collision.check_overlap(self, plant_pop)
         if food != -1:
-          self.eat(plant_pop[food])
 
-        # momment (ai)
+            self.eat(plant_pop[food])
+
+        # refresh stance (ai)
+        if frame % self.ai_stance_update_rate == self.ai_stance_update_frame:
+
+            self.refresh_stance()
+
+        # movement (ai)
         if self.ai_stance == "__hungry__":
-
 
             Ai().hungry(self)
 
-
+        # repruduce (ai)
         elif self.ai_stance == "__mate_search__":
-
 
             Ai().mate_search(self)
         
@@ -431,7 +400,7 @@ class Blob():
         child.mass_to_reproduce = ( self.mass_to_reproduce + partner.mass_to_reproduce ) / 2 + uniform(-150,150)
         
         # repruction child size gene
-        child.reproduce_child_size = (self.reproduce_child_size + partner.reproduce_child_size ) / 2 + uniform(-0.10,0.10)
+        child.reproduce_child_size = (self.reproduce_child_size + partner.reproduce_child_size ) / 2 + uniform(-0.5,0.5)
         if child.reproduce_child_size < 0:
             child.reproduce_child_size = 0
 
@@ -441,7 +410,7 @@ class Blob():
             child.sight = 1
 
         # speed gene
-        child.speed_modifier = (self.speed_modifier + partner.speed_modifier) / 2 + uniform(-0.5, 0.5)
+        child.speed_modifier = (self.speed_modifier + partner.speed_modifier) / 2 + uniform(-0.15, 0.15)
         if child.speed_modifier < 0:
             speed_modifier = 0
 
@@ -452,19 +421,12 @@ class Blob():
         self.mass -= self.mass * self.reproduce_child_size
         partner.mass -= partner.mass * partner.reproduce_child_size
 
-        #Adds child to both parents
-        self.children += 1
-        partner.children += 1
-
-
         # change ai stance for both partners
         self.refresh_stance()
         partner.refresh_stance()
 
-
         self.target_mate = 0
         partner.target_mate = 0
-
 
         for blob in population:
             if blob.target_mate == partner or blob.target_mate == self:
@@ -483,21 +445,26 @@ class Blob():
         self.target_plant = 0
         self.target_mate = 0
 
-
+    # consume a plant
     def eat(self, plant):
+
         self.mass += plant.mass
         ENV.chunks[plant.chunk_x][plant.chunk_y].plants -= 1
         self.refresh_stance()
         
+        # why is this code here???
         for blob in population:
+
             if blob.target_plant == plant:
+
                 blob.target_plant = 0
+        # ------------------------
         
         plant_pop.remove(plant)
 
 
-
-    def draw(self, window): # draws a circle into the window
+    # draws a circle into the window
+    def draw(self, window):
 
         try:
 
@@ -507,12 +474,7 @@ class Blob():
             print("error with colors:", self.color)
             pygame.draw.circle(window, self.color, (int(self.x), int(self.y)), self.radius)
         
-
-
-        #pygame.draw.circle(window, [255,255,255],(int(self.x),int(self.y)),int(self.sight),1)
-        #Shows vision
-
-
+# the class from which the blob objects are created, comes with alot of plants exsclusive function
 class Plant():
 
 
@@ -525,19 +487,13 @@ class Plant():
         self.max_mass = float(1000)
         self.radius = int( ( self.mass / pi ) ** 0.5 )
         self.photosynthesis = float(10)
+        self.age = 0
         self.children = 0
-
 
         self.chunk_x = 0
         self.chunk_y = 0
 
-
         self.minimal_mass = 10
-
-
-        # possible toxicty
-        # possible colors depending on other factors
-
 
         #genes
         self.seed_spread = uniform(0,150) # for reproduction
@@ -549,9 +505,8 @@ class Plant():
         new_mass = self.photosynthesis * (1 - self.mass/self.max_mass) * ENV.chunks[self.chunk_x][self.chunk_y].biomass/1000
         #calculates mass based on current mass, max mass, biomass in chunk and photosynthesis
 
-
         self.mass += new_mass #adds mass to plant
-
+        self.age += 1
 
         ENV.chunks[self.chunk_x][self.chunk_y].biomass -= new_mass #removes mass from chunk
 
@@ -563,16 +518,14 @@ class Plant():
 
     def draw(self, window): # draws a circle into the window
 
-
         pygame.draw.circle(window, Colors.green, (int(self.x), int(self.y)), self.radius)
 
-    window_width = int(1300)
-    window_length = int(800)
+
     def reproduce(self):
+
         angle = uniform(0,2*pi)
         sapling = Plant()
         sapling.mass = self.mass * self.reproduce_child_size
-
 
         sapling.x = self.x + self.seed_spread * sin(angle)
         sapling.y = self.y + self.seed_spread * cos(angle)
@@ -610,8 +563,6 @@ class Plant():
         self.children += 1
 
 
-
-
     def find_chunk(self, Environment):
         for x in range(0,13):
             for y in range(0,8):
@@ -620,7 +571,7 @@ class Plant():
                     self.chunk_y = y
                     return
 
-
+# the class from which the chunk objects are created, comes with alot of chunk exsclusive function
 class Chunk():
 
 
@@ -632,7 +583,7 @@ class Chunk():
         self.growth = float(0.25)
         self.x = 0
         self.y = 0
-        self.color = [0,0,0]
+        self.color = [51,0,0]
         self.plants = 0  # to be revisited
 
 
@@ -644,15 +595,14 @@ class Chunk():
         ENV.mass_given_this_frame += int ( self.growth * (1 - self.biomass/self.max_biomass) * ENV.world_mass / ENV.chunks_amount )
 
         # Update color to see biomass
-        self.color[1] = int( 255 * self.biomass / self.max_biomass)
-        if self.color[1] > 255:
-            self.color[1] = 255
+        self.color[1] = int( 230 * self.biomass / self.max_biomass + 25)
+        self.color[0] = int( 51 - 26 * (self.biomass / self.max_biomass) - 25 )
         
     def draw(self,window):
 
         pygame.draw.rect(window,self.color,(self.x,self.y,self.width, self.width))
 
-
+# the class which manages the environment the blobs and plants inhibits
 class Environment():
 
     def __init__(self):
@@ -686,7 +636,7 @@ class Environment():
     # day and night cycle
     # summer and winter cycle
                         
-
+# deals with gathering data during the simulation and defines functions to display the same data
 class Statistics():
 
 
@@ -702,13 +652,14 @@ class Statistics():
     blob_average_mass_to_reproduce = []
     blob_average_child_size = []
     blob_population_size = []
-
+    blob_average_age = []
     blob_death_counter = []
 
     # plant stats:
     
     plant_total_mass = []
     plant_pop_size = []
+    plant_average_age = []
 
     def get_info(self, frame):
 
@@ -720,6 +671,7 @@ class Statistics():
         sight = 0
         mass_to_reproduce = 0
         child_size = 0
+        blob_combined_age = 0
 
         for blob in population:
 
@@ -728,13 +680,16 @@ class Statistics():
             sight += blob.sight
             mass_to_reproduce += blob.mass_to_reproduce
             child_size += blob.reproduce_child_size
+            blob_combined_age += blob.age
         
         plant_pop_size = len( plant_pop )
         total_mass_plants = 0
+        plant_combined_age = 0
 
         for plant in plant_pop:
 
             total_mass_plants += plant.mass
+            plant_combined_age += plant.age
 
             
 
@@ -748,11 +703,13 @@ class Statistics():
         self.blob_average_child_size.append( child_size / blob_population_size )
         self.blob_population_size.append( blob_population_size )
         self.blob_death_counter.append( Misc.death_counter )
+        self.blob_average_age.append( blob_combined_age / blob_population_size )
 
         # plant stats:
 
         self.plant_total_mass.append( total_mass_plants )
         self.plant_pop_size.append( plant_pop_size )
+        self.plant_average_age.append( plant_combined_age / blob_population_size )
 
         # other 
         self.frame_array.append( frame )
@@ -1096,7 +1053,6 @@ class Statistics():
         
             sleep(0.05)
 
-
 # effectivly our main function
 class Visual():
 
@@ -1112,8 +1068,8 @@ class Visual():
         self.timer = 0 # for counting frames
         self.running = True
 
-
-        while self.running == True: # infinite loop
+        # our main loop
+        while self.running == True:
 
             for event in pygame.event.get(): # this allows the program to end the loop if the x buttom is pressed
 
@@ -1121,19 +1077,10 @@ class Visual():
 
                     self.running = False
 
-
-
-
             self.window.fill(Colors.black) # clears the screen
-            
-
-
-            # prints the map on the surfece
 
 
             # uppdates and draws objects
-
-
             if self.timer % 10 == 0:
                 PL = Plant()
                 PL.find_chunk(ENV)
@@ -1159,7 +1106,7 @@ class Visual():
 
             for blob in population:
 
-                blob.update()
+                blob.update(self.timer)
                 if blob.mass < blob.minimal_mass:
 
                     ENV.world_mass += blob.mass
@@ -1170,9 +1117,6 @@ class Visual():
                   
     
             pygame.display.update() # display the new frame
-
-
-
             
             Misc().report(self.timer)
             if self.timer % 10 == 0:
@@ -1182,7 +1126,6 @@ class Visual():
             # the following code makes sure theres will always be 60 fps
             dt = time() - Misc.last_time
             desired_frames = dt * Misc.framerate
-            #print( "wanted frames : " , int ( desired_frames ) )
 
             # if theres more frames displayed then wanted
             if desired_frames < self.timer:
@@ -1199,17 +1142,13 @@ class Visual():
             self.timer += 1
 
 
-
-
         print("---end---")
 
 
-
-
 # --- hardcoded --- #
+
+
 ENV = Environment()
-
-
 plant_pop = []
 population = []
 for i in range(0,50):
@@ -1223,22 +1162,24 @@ for i in range(0,5):
 
 
 # --- --------- --- #
+# this code runs the simulation
 
 
+try:
 
+    Visual() # start the game mode
 
-Visual() # start the game mode
+except:
+    print("the evolution was terminated either due to an unexpected error or the blob population died out")
+
 pygame.quit() # exit properly (pygame)
 
-
-
 # --- -------- --- #
-
 # this code displays the statistics
 
 run = True
 while run == True:
-    
+  
     print("options : ")
     print("mass_graph : shows mass for blobs, plants and chunks")
     print("pop_graph : shows the populations over time")
@@ -1248,14 +1189,14 @@ while run == True:
     print("sight_gene_graph : shows the gene which decides how far the blob can se")
     print("blob_to_plant_ratio : shows the ratio of blobs per plant")
     print("death_graph : shows a graph of the total death count")
+    print("blob_age_graph : shows a graph of the average age of blobs")
+    print("plant_age_graph : shows a graph of the average age of plant")
 
     show_stat = input("enter command : ")
     show_stat = str(show_stat)
 
     if show_stat == "mass_graph":
 
-        #print( "blob_total_mass : ", Statistics.blob_total_mass )
-        #print( "plant_total_mass : ", Statistics.plant_total_mass )
         Statistics().visualize_total_mass()
         pygame.quit()
 
@@ -1295,6 +1236,16 @@ while run == True:
         Statistics().visualize_gene( Statistics.blob_death_counter, "blob_death_counter" )
         pygame.quit() 
 
+    elif show_stat == "blob_age_graph":
+
+        Statistics().visualize_gene( Statistics.blob_average_age, "blob_age_graph" )
+        pygame.quit() 
+
+    elif show_stat == "plant_age_graph":
+
+        Statistics().visualize_gene( Statistics.plant_average_age, "plant_age_graph" )
+        pygame.quit() 
+
     elif show_stat == "end":
 
         break
@@ -1303,22 +1254,4 @@ while run == True:
 
         print("unknown command - plz retry")
 
-
-
 print("end of thread")
-
-
-#        self.blob_total_mass = []
-#        self.blob_average_mass = []
-#        self.blob_average_speed = []
-#        self.blob_average_sight = []
-#        self.blob_average_mass_to_reproduce = []
-#        self.blob_average_child_size = []
-#
-#        self.blob_population_size = []
-#
-#
-#        # plant stats:
-#
-#        self.plant_total_mass = []
-#        self.plant_pop_size = []imits the frames, lower the value to make the game go faster
